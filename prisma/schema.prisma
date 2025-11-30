@@ -1,0 +1,1195 @@
+// Jadwa Consulting Platform - Database Schema
+// Prisma + MySQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum UserRole {
+  CLIENT
+  CONSULTANT
+  ADMIN
+  SUPER_ADMIN
+  ANALYST
+  SUPPORT
+  FINANCE
+}
+
+enum ServiceCategory {
+  ECONOMIC
+  ADMINISTRATIVE
+  FINANCIAL_ACCOUNTING
+  ANALYSIS_REPORTS
+  FIELD_SURVEY
+  DIGITAL_CUSTOMER
+}
+
+enum ServiceStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum BookingType {
+  VIDEO_CALL
+  CHAT
+  ECONOMIC_STUDY
+  FINANCIAL_ANALYSIS
+  FEASIBILITY_STUDY
+  CONSULTATION
+  REPORT_REQUEST
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  REJECTED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  APPLE_PAY
+  MADA
+  BANK_TRANSFER
+  STC_PAY
+}
+
+enum SessionStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ReportStatus {
+  DRAFT
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum StudyStatus {
+  DRAFT
+  UNDER_REVIEW
+  COMPLETED
+  REJECTED
+}
+
+enum NotificationType {
+  NEW_BOOKING
+  BOOKING_CANCELLED
+  BOOKING_CONFIRMED
+  PAYMENT_RECEIVED
+  REPORT_UPLOADED
+  APPOINTMENT_REMINDER
+  CONSULTANT_RESPONSE
+  WITHDRAWAL_REQUESTED
+  ADMIN_ALERT
+  SYSTEM_NOTIFICATION
+}
+
+enum ArticleStatus {
+  PUBLISHED
+  DRAFT
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum NotificationChannel {
+  EMAIL
+  PUSH
+  SMS
+  WHATSAPP
+  IN_APP
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum LogLevel {
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  PAYMENT
+  REFUND
+  SUSPEND
+  ACTIVATE
+}
+
+enum FileOwnerType {
+  USER
+  BOOKING
+  REPORT
+  FEASIBILITY_STUDY
+  ARTICLE
+  TICKET
+  MESSAGE
+  GENERAL
+}
+
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  password        String
+  role            UserRole  @default(CLIENT)
+  emailVerified   Boolean   @default(false)
+  emailVerifiedAt DateTime?
+  phone           String?
+  phoneVerified   Boolean   @default(false)
+  avatar          String?
+  isActive        Boolean   @default(true)
+  lastLogin       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  client           Client?
+  consultant       Consultant?
+  admin            Admin?
+  sentMessages     Message[]            @relation("SenderMessages")
+  receivedMessages Message[]            @relation("ReceiverMessages")
+  notifications    Notification[]
+  articles         Article[]
+  withdrawals      Withdrawal[]
+  userRoles        UserRoleAssignment[]
+  supportTickets   SupportTicket[]
+  ticketComments   TicketComment[]
+  systemLogs       SystemLog[]
+  auditLogs        AuditLog[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+// ============================================
+// CLIENT MODEL
+// ============================================
+
+model Client {
+  id                     String    @id @default(uuid())
+  userId                 String    @unique
+  firstName              String
+  lastName               String
+  dateOfBirth            DateTime?
+  gender                 String? // MALE, FEMALE, OTHER
+  city                   String?
+  country                String?   @default("Saudi Arabia")
+  address                String?   @db.Text
+  postalCode             String?
+  sector                 String?
+  accountType            String? // INDIVIDUAL, COMPANY, GOVERNMENT_ENTITY
+  companyName            String? // Establishment name
+  commercialName         String? // Commercial name / Trade name
+  companySize            String? // SMALL, MEDIUM, LARGE
+  commercialRegister     String? // Commercial registration number
+  commercialRegisterFile String? // Commercial register file URL (PDF/Image)
+  taxNumber              String? // Tax number for invoices
+  economicSector         String? // GOVERNMENT, PRIVATE, NON_PROFIT
+  industry               String? // INDUSTRIAL, COMMERCIAL, SERVICE, FINANCIAL, CONSULTING, EDUCATIONAL
+  numberOfEmployees      Int? // Estimated number of employees
+  jobTitle               String?
+  website                String?
+  linkedin               String?
+  twitter                String?
+  preferredServices      String?   @db.Text // JSON array - نوع الخدمة المطلوبة
+  registrationPurpose    String?   @db.Text // الهدف من التسجيل
+  preferredConsultantId  String? // Preferred consultant ID (optional)
+  preferredPaymentMethod String? // CREDIT_CARD, MADA, APPLE_PAY, BANK_TRANSFER
+  invoiceAddress         String?   @db.Text // Address for invoices
+  companyLogo            String? // Company logo URL
+  entityDefinition       String? // Entity definition attachment URL
+  notificationEmail      Boolean   @default(true)
+  notificationApp        Boolean   @default(true)
+  notificationWhatsApp   Boolean   @default(false)
+  preferredLanguage      String?   @default("ar") // ar, en
+  termsAccepted          Boolean   @default(false) // Terms and conditions acceptance
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  // Relations
+  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  preferredConsultant Consultant?        @relation("ClientPreferredConsultant", fields: [preferredConsultantId], references: [id])
+  bookings            Booking[]
+  reports             Report[]
+  feasibilityStudies  FeasibilityStudy[]
+
+  @@index([userId])
+  @@index([preferredConsultantId])
+  @@map("clients")
+}
+
+// ============================================
+// CONSULTANT MODEL
+// ============================================
+
+model Consultant {
+  id                     String    @id @default(uuid())
+  userId                 String    @unique
+  firstName              String
+  lastName               String
+  dateOfBirth            DateTime?
+  gender                 String? // MALE, FEMALE, OTHER
+  academicTitle          String? // DOCTOR, PROFESSOR, CONSULTANT, EXPERT, ASSOCIATE_PROFESSOR
+  academicDegree         String
+  university             String? // Issuing university name
+  graduationYear         Int? // Graduation year
+  specialization         String
+  specificSpecialization String? // Specific specialization details
+  professionalCourses    String?   @db.Text // Professional courses like CFA, PMP, CMA
+  bio                    String?   @db.Text
+  expertiseFields        String    @db.Text // JSON array
+  profilePicture         String?
+  city                   String?
+  country                String?   @default("Saudi Arabia")
+  address                String?   @db.Text
+  postalCode             String?
+  yearsOfExperience      Int?      @default(0)
+  previousEmployers      String?   @db.Text // Previous positions and employers
+  areasOfExpertise       String?   @db.Text // JSON array - مثل دراسات جدوى - استشارات مالية
+  implementedProjects    String?   @db.Text // JSON array - أمثلة مختصرة للمشاريع المنفذة
+  languages              String?   @db.Text // JSON array
+  certifications         String?   @db.Text // JSON array
+  education              String?   @db.Text // JSON array
+  website                String?
+  linkedin               String?
+  twitter                String?
+  rating                 Float     @default(0.0)
+  totalRatings           Int       @default(0)
+  pricePerSession        Decimal   @db.Decimal(10, 2)
+  sessionDuration        Int?      @default(60) // Default session duration in minutes (30/60/90)
+  consultationMode       String?   @db.Text // JSON array - VIDEO, CHAT, REPORT, WRITTEN_STUDY
+  totalEarnings          Decimal   @default(0) @db.Decimal(10, 2)
+  bankAccount            String? // Bank account number
+  bankName               String? // Bank name from list
+  iban                   String? // IBAN for transfers
+  commissionPercentage   Decimal?  @db.Decimal(5, 2) // Platform commission percentage
+  dueAmounts             Decimal   @default(0) @db.Decimal(10, 2) // Amounts due to consultant
+  financialAccountStatus String? // ACTIVE, PENDING, SUSPENDED, TRANSFERRED
+  academicCertificates   String?   @db.Text // JSON array of certificate file URLs
+  nationalId             String? // National ID or Residency document URL
+  consultingLicense      String? // Consulting practice license URL
+  cvUrl                  String? // CV PDF file URL
+  isVerified             Boolean   @default(false)
+  isAvailable            Boolean   @default(true)
+  acceptsSessions        Boolean   @default(true) // Toggle for session reception
+  categoryId             String? // Category for type of service provided
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  // Relations
+  user               User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category           Category?             @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  preferredByClients Client[]              @relation("ClientPreferredConsultant")
+  bookings           Booking[]             @relation("ConsultantBookings")
+  availabilitySlots  AvailabilitySlot[]
+  reports            Report[]
+  feasibilityStudies FeasibilityStudy[]
+  earnings           Earning[]
+  withdrawals        Withdrawal[]
+  specialties        ConsultantSpecialty[]
+
+  @@index([userId])
+  @@index([isAvailable])
+  @@index([rating])
+  @@index([categoryId])
+  @@map("consultants")
+}
+
+// ============================================
+// ADMIN MODEL
+// ============================================
+
+model Admin {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  firstName   String
+  lastName    String
+  adminRole   UserRole @default(ADMIN) // SUPER_ADMIN, ANALYST, SUPPORT, FINANCE
+  permissions String   @db.Text // JSON array of permissions
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([adminRole])
+  @@map("admins")
+}
+
+// ============================================
+// SERVICES MODULE
+// ============================================
+
+model Service {
+  id             String          @id @default(uuid())
+  title          String
+  titleAr        String? // Arabic title
+  description    String          @db.Text
+  descriptionAr  String?         @db.Text // Arabic description
+  category       ServiceCategory // Keep for backward compatibility
+  categoryId     String? // New unified category
+  targetAudience String?         @db.Text
+  type           String?
+  price          Decimal?        @db.Decimal(10, 2)
+  icon           String?
+  image          String?
+  status         ServiceStatus   @default(ACTIVE)
+  order          Int             @default(0)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  // Relations
+  categoryRelation Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  bookings         Booking[]
+  commissions      ServiceCommission[]
+
+  @@index([category])
+  @@index([categoryId])
+  @@index([status])
+  @@map("services")
+}
+
+// ============================================
+// BOOKING SYSTEM
+// ============================================
+
+model Booking {
+  id               String        @id @default(uuid())
+  clientId         String
+  consultantId     String
+  serviceId        String?
+  bookingType      BookingType
+  status           BookingStatus @default(PENDING)
+  price            Decimal       @db.Decimal(10, 2)
+  duration         Int // in minutes
+  scheduledAt      DateTime
+  selectedTimeSlot String?
+  paymentStatus    PaymentStatus @default(PENDING)
+  paymentId        String?       @unique
+  reportUrl        String?
+  rating           Int? // 1-5
+  comment          String?       @db.Text
+  clientNotes      String?       @db.Text
+  consultantNotes  String?       @db.Text
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  completedAt      DateTime?
+
+  // Relations
+  client     Client     @relation(fields: [clientId], references: [id])
+  consultant Consultant @relation("ConsultantBookings", fields: [consultantId], references: [id])
+  service    Service?   @relation(fields: [serviceId], references: [id])
+  session    Session?
+  report     Report?
+  payment    Payment?   @relation(fields: [paymentId], references: [id])
+
+  @@index([clientId])
+  @@index([consultantId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([paymentStatus])
+  @@map("bookings")
+}
+
+// ============================================
+// AVAILABILITY SLOTS
+// ============================================
+
+model AvailabilitySlot {
+  id           String   @id @default(uuid())
+  consultantId String
+  dayOfWeek    Int // 0-6 (Sunday-Saturday)
+  startTime    String // HH:mm format
+  endTime      String // HH:mm format
+  isAvailable  Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  consultant Consultant @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+
+  @@index([consultantId])
+  @@index([dayOfWeek])
+  @@map("availability_slots")
+}
+
+// ============================================
+// SESSIONS (CHAT & VIDEO)
+// ============================================
+
+model Session {
+  id          String        @id @default(uuid())
+  bookingId   String? // Optional for direct admin-user chats
+  sessionType String // "video" or "chat"
+  roomId      String? // Video room ID (Zoom/Twilio)
+  status      SessionStatus @default(SCHEDULED)
+  startTime   DateTime?
+  endTime     DateTime?
+  duration    Int? // in minutes
+  sessionLog  String?       @db.Text // JSON log
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  booking  Booking?  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@unique([bookingId])
+  @@index([bookingId])
+  @@index([status])
+  @@index([roomId])
+  @@map("sessions")
+}
+
+// ============================================
+// MESSAGES
+// ============================================
+
+model Message {
+  id          String    @id @default(uuid())
+  sessionId   String
+  senderId    String
+  receiverId  String
+  content     String    @db.Text
+  messageType String    @default("text") // text, file, image, video, audio
+  attachments String?   @db.Text // JSON array of file URLs
+  isRead      Boolean   @default(false)
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  // Relations
+  session  Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sender   User    @relation("SenderMessages", fields: [senderId], references: [id])
+  receiver User    @relation("ReceiverMessages", fields: [receiverId], references: [id])
+
+  @@index([sessionId])
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([isRead])
+  @@map("messages")
+}
+
+// ============================================
+// REPORTS & DELIVERABLES
+// ============================================
+
+model Report {
+  id                  String       @id @default(uuid())
+  bookingId           String       @unique
+  clientId            String
+  consultantId        String
+  title               String
+  reportType          String // PDF, Word, Excel, etc.
+  pdfUrl              String?
+  wordUrl             String?
+  summary             String?      @db.Text
+  additionalResources String?      @db.Text // JSON array
+  status              ReportStatus @default(DRAFT)
+  adminNotes          String?      @db.Text
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  approvedAt          DateTime?
+
+  // Relations
+  booking    Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  client     Client     @relation(fields: [clientId], references: [id])
+  consultant Consultant @relation(fields: [consultantId], references: [id])
+
+  @@index([bookingId])
+  @@index([clientId])
+  @@index([consultantId])
+  @@index([status])
+  @@map("reports")
+}
+
+// ============================================
+// FEASIBILITY STUDIES
+// ============================================
+
+model FeasibilityStudy {
+  id               String      @id @default(uuid())
+  clientId         String
+  consultantId     String?
+  title            String
+  description      String?     @db.Text
+  marketStudy      String?     @db.Text
+  financialStudy   String?     @db.Text
+  legalStudy       String?     @db.Text
+  riskAnalysis     String?     @db.Text
+  expectedRevenues Decimal?    @db.Decimal(15, 2)
+  expectedCosts    Decimal?    @db.Decimal(15, 2)
+  fileUrls         String?     @db.Text // JSON array
+  status           StudyStatus @default(DRAFT)
+  adminNotes       String?     @db.Text
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  completedAt      DateTime?
+
+  // Relations
+  client     Client      @relation(fields: [clientId], references: [id])
+  consultant Consultant? @relation(fields: [consultantId], references: [id])
+
+  @@index([clientId])
+  @@index([consultantId])
+  @@index([status])
+  @@map("feasibility_studies")
+}
+
+// ============================================
+// PAYMENTS & INVOICES
+// ============================================
+
+model Payment {
+  id              String        @id @default(uuid())
+  bookingId       String?       @unique
+  clientId        String
+  consultantId    String?
+  amount          Decimal       @db.Decimal(10, 2)
+  currency        String        @default("SAR")
+  method          PaymentMethod
+  status          PaymentStatus @default(PENDING)
+  transactionId   String?       @unique
+  invoiceNumber   String?       @unique
+  invoiceUrl      String?
+  gatewayResponse String?       @db.Text // JSON
+  failureReason   String?       @db.Text
+  paidAt          DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  booking  Booking?
+  earnings Earning[]
+
+  @@index([clientId])
+  @@index([consultantId])
+  @@index([status])
+  @@index([transactionId])
+  @@index([invoiceNumber])
+  @@map("payments")
+}
+
+// ============================================
+// EARNINGS & WITHDRAWALS
+// ============================================
+
+model Earning {
+  id           String   @id @default(uuid())
+  consultantId String
+  paymentId    String
+  amount       Decimal  @db.Decimal(10, 2)
+  platformFee  Decimal  @db.Decimal(10, 2) // Platform commission
+  netAmount    Decimal  @db.Decimal(10, 2) // Amount after fee
+  status       String   @default("pending") // pending, available, withdrawn
+  createdAt    DateTime @default(now())
+
+  // Relations
+  consultant Consultant @relation(fields: [consultantId], references: [id])
+  payment    Payment    @relation(fields: [paymentId], references: [id])
+
+  @@index([consultantId])
+  @@index([paymentId])
+  @@index([status])
+  @@map("earnings")
+}
+
+model Withdrawal {
+  id            String           @id @default(uuid())
+  consultantId  String
+  userId        String
+  amount        Decimal          @db.Decimal(10, 2)
+  bankName      String?
+  accountNumber String?
+  iban          String?
+  status        WithdrawalStatus @default(PENDING)
+  adminNotes    String?          @db.Text
+  processedAt   DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  // Relations
+  consultant Consultant @relation(fields: [consultantId], references: [id])
+  user       User       @relation(fields: [userId], references: [id])
+
+  @@index([consultantId])
+  @@index([status])
+  @@map("withdrawals")
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
+model Notification {
+  id        String              @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String              @db.Text
+  link      String?
+  channel   NotificationChannel @default(IN_APP)
+  isRead    Boolean             @default(false)
+  readAt    DateTime?
+  sentAt    DateTime? // When notification was actually sent
+  metadata  String?             @db.Text // JSON
+  createdAt DateTime            @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([type])
+  @@index([channel])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ============================================
+// BLOG & ARTICLES
+// ============================================
+
+model Article {
+  id            String        @id @default(uuid())
+  authorId      String
+  title         String
+  titleAr       String? // Arabic title
+  slug          String        @unique
+  content       String        @db.LongText
+  contentAr     String?       @db.LongText // Arabic content
+  excerpt       String?       @db.Text
+  excerptAr     String?       @db.Text
+  category      String? // Keep for backward compatibility
+  categoryId    String? // New unified category
+  featuredImage String?
+  images        String?       @db.Text // JSON array of image URLs
+  tags          String?       @db.Text // JSON array
+  status        ArticleStatus @default(DRAFT)
+  views         Int           @default(0)
+  publishedAt   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  author           User      @relation(fields: [authorId], references: [id])
+  categoryRelation Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([authorId])
+  @@index([slug])
+  @@index([status])
+  @@index([category])
+  @@index([categoryId])
+  @@index([publishedAt])
+  @@map("articles")
+}
+
+// ============================================
+// CMS (STATIC PAGES)
+// ============================================
+
+model CMSPage {
+  id              String   @id @default(uuid())
+  title           String
+  titleAr         String? // Arabic title
+  slug            String   @unique
+  content         String   @db.LongText
+  contentAr       String?  @db.LongText // Arabic content
+  metaTitle       String?
+  metaDescription String?  @db.Text
+  isPublished     Boolean  @default(false)
+  order           Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([slug])
+  @@index([isPublished])
+  @@map("cms_pages")
+}
+
+// ============================================
+// SMART PLATFORM FEATURES
+// ============================================
+
+model EconomicIndicator {
+  id        String   @id @default(uuid())
+  name      String
+  nameAr    String? // Arabic name
+  value     Decimal  @db.Decimal(15, 2)
+  unit      String?
+  category  String?
+  period    String? // e.g., "2025-Q1"
+  source    String?
+  metadata  String?  @db.Text // JSON
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([period])
+  @@map("economic_indicators")
+}
+
+model Dashboard {
+  id          String   @id @default(uuid())
+  userId      String? // Null for public dashboards
+  title       String
+  titleAr     String? // Arabic title
+  description String?  @db.Text
+  config      String   @db.Text // JSON configuration
+  isPublic    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([isPublic])
+  @@map("dashboards")
+}
+
+model Dataset {
+  id            String   @id @default(uuid())
+  title         String
+  titleAr       String? // Arabic title
+  description   String?  @db.Text
+  fileUrl       String
+  fileType      String // CSV, Excel, JSON, etc.
+  category      String?
+  tags          String?  @db.Text // JSON array
+  isPublic      Boolean  @default(false)
+  downloadCount Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([category])
+  @@index([isPublic])
+  @@map("datasets")
+}
+
+// ============================================
+// SYSTEM SETTINGS
+// ============================================
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String   @db.Text
+  description String?  @db.Text
+  category    String? // payment, email, sms, etc.
+  updatedAt   DateTime @updatedAt
+
+  @@index([key])
+  @@index([category])
+  @@map("system_settings")
+}
+
+// ============================================
+// RBAC - ROLES & PERMISSIONS
+// ============================================
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  nameAr      String? // Arabic name
+  description String?  @db.Text
+  isSystem    Boolean  @default(false) // System roles cannot be deleted
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  permissions RolePermission[]
+  userRoles   UserRoleAssignment[]
+
+  @@index([name])
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  nameAr      String? // Arabic name
+  resource    String // e.g., "bookings", "payments", "users"
+  action      String // e.g., "create", "read", "update", "delete"
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  rolePermissions RolePermission[]
+
+  @@index([resource])
+  @@index([action])
+  @@index([name])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String   @id @default(uuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  // Relations
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model UserRoleAssignment {
+  id         String    @id @default(uuid())
+  userId     String
+  roleId     String
+  assignedBy String? // Admin who assigned this role
+  expiresAt  DateTime? // Optional expiration
+  createdAt  DateTime  @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+// ============================================
+// CONSULTANT SPECIALTIES (Many-to-Many)
+// ============================================
+
+model Specialty {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  nameAr      String? // Arabic name
+  description String?  @db.Text
+  category    String? // Economic, Financial, Administrative, etc.
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  consultantSpecialties ConsultantSpecialty[]
+
+  @@index([category])
+  @@map("specialties")
+}
+
+model ConsultantSpecialty {
+  id                String   @id @default(uuid())
+  consultantId      String
+  specialtyId       String
+  yearsOfExperience Int? // Years of experience in this specialty
+  certification     String? // Certification details
+  createdAt         DateTime @default(now())
+
+  // Relations
+  consultant Consultant @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+  specialty  Specialty  @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
+
+  @@unique([consultantId, specialtyId])
+  @@index([consultantId])
+  @@index([specialtyId])
+  @@map("consultant_specialties")
+}
+
+// ============================================
+// SUPPORT TICKETS
+// ============================================
+
+model SupportTicket {
+  id           String         @id @default(uuid())
+  ticketNumber String         @unique // Auto-generated: TKT-YYYYMMDD-XXXXX
+  userId       String
+  subject      String
+  description  String         @db.Text
+  status       TicketStatus   @default(OPEN)
+  priority     TicketPriority @default(MEDIUM)
+  assignedTo   String? // Admin/Support user ID
+  category     String? // technical, billing, general, etc.
+  tags         String?        @db.Text // JSON array
+  resolution   String?        @db.Text
+  resolvedAt   DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  // Relations
+  user     User            @relation(fields: [userId], references: [id])
+  comments TicketComment[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([priority])
+  @@index([assignedTo])
+  @@index([ticketNumber])
+  @@map("support_tickets")
+}
+
+model TicketComment {
+  id         String   @id @default(uuid())
+  ticketId   String
+  userId     String // Commenter user ID
+  comment    String   @db.Text
+  isInternal Boolean  @default(false) // Internal notes vs client-visible
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [userId], references: [id])
+
+  @@index([ticketId])
+  @@index([userId])
+  @@map("ticket_comments")
+}
+
+// ============================================
+// FILES & ATTACHMENTS (Generic)
+// ============================================
+
+model FileAttachment {
+  id               String        @id @default(uuid())
+  ownerType        FileOwnerType
+  ownerId          String // ID of the owner entity
+  fileName         String
+  originalFileName String
+  fileUrl          String
+  fileType         String // MIME type
+  mimeType         String
+  fileSize         BigInt // Size in bytes
+  thumbnailUrl     String? // For images/videos
+  description      String?       @db.Text
+  uploadedBy       String // User ID who uploaded
+  isPublic         Boolean       @default(false)
+  downloadCount    Int           @default(0)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  // Note: Polymorphic relations handled via ownerType + ownerId (no foreign keys)
+  // Relations can be added for specific types if needed
+
+  @@index([ownerType, ownerId])
+  @@index([uploadedBy])
+  @@index([fileType])
+  @@map("file_attachments")
+}
+
+// ============================================
+// SYSTEM LOGS & AUDIT TRAIL
+// ============================================
+
+model SystemLog {
+  id        String   @id @default(uuid())
+  level     LogLevel
+  message   String   @db.Text
+  context   String?  @db.Text // JSON context
+  userId    String? // User who triggered the log
+  ipAddress String?
+  userAgent String?  @db.Text
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([level])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("system_logs")
+}
+
+model AuditLog {
+  id           String      @id @default(uuid())
+  userId       String // User who performed the action
+  action       AuditAction
+  resourceType String // e.g., "Booking", "Payment", "User"
+  resourceId   String // ID of the affected resource
+  changes      String?     @db.Text // JSON before/after
+  description  String?     @db.Text
+  ipAddress    String?
+  userAgent    String?     @db.Text
+  createdAt    DateTime    @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([action])
+  @@index([resourceType, resourceId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ============================================
+// KPIs & ANALYTICS
+// ============================================
+
+model KPIMetric {
+  id          String   @id @default(uuid())
+  metricName  String // e.g., "daily_sessions", "monthly_revenue"
+  metricValue Decimal  @db.Decimal(15, 2)
+  metricData  String?  @db.Text // JSON additional data
+  period      String // e.g., "2025-01-15", "2025-Q1", "2025"
+  category    String? // revenue, sessions, users, satisfaction
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([metricName, period])
+  @@index([metricName])
+  @@index([period])
+  @@index([category])
+  @@map("kpi_metrics")
+}
+
+// ============================================
+// BACKUP TRACKING
+// ============================================
+
+model Backup {
+  id             String    @id @default(uuid())
+  backupType     String // "full", "incremental", "schema_only"
+  backupLocation String // File path or S3 URL
+  backupSize     BigInt? // Size in bytes
+  tablesIncluded String?   @db.Text // JSON array of table names
+  status         String    @default("completed") // completed, failed, in_progress
+  errorMessage   String?   @db.Text
+  startedAt      DateTime
+  completedAt    DateTime?
+  createdBy      String? // User ID or "system"
+  createdAt      DateTime  @default(now())
+
+  @@index([backupType])
+  @@index([status])
+  @@index([startedAt])
+  @@map("backups")
+}
+
+// ============================================
+// PAYMENT COMMISSION RATES
+// ============================================
+
+model ServiceCommission {
+  id              String           @id @default(uuid())
+  serviceId       String? // Null for default commission
+  serviceCategory ServiceCategory? // Null for default
+  commissionRate  Decimal          @db.Decimal(5, 2) // Percentage (e.g., 15.00 for 15%)
+  isActive        Boolean          @default(true)
+  effectiveFrom   DateTime         @default(now())
+  effectiveTo     DateTime? // Null means indefinite
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  // Relations
+  service Service? @relation(fields: [serviceId], references: [id])
+
+  @@index([serviceId])
+  @@index([serviceCategory])
+  @@index([isActive])
+  @@map("service_commissions")
+}
+
+// ============================================
+// PARTNERS
+// ============================================
+
+model Partner {
+  id            String   @id @default(uuid())
+  name          String
+  nameAr        String?
+  logo          String? // URL to logo image
+  website       String?
+  description   String?  @db.Text
+  descriptionAr String?  @db.Text
+  isActive      Boolean  @default(true)
+  order         Int      @default(0) // For sorting/ordering
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([order])
+  @@map("partners")
+}
+
+// ============================================
+// CATEGORIES (Unified Category System)
+// ============================================
+
+model Category {
+  id            String   @id @default(uuid())
+  name          String
+  nameAr        String?
+  slug          String   @unique
+  description   String?  @db.Text
+  descriptionAr String?  @db.Text
+  icon          String? // Icon URL or class name
+  color         String? // Hex color code for UI
+  isActive      Boolean  @default(true)
+  order         Int      @default(0) // For sorting/ordering
+  parentId      String? // For hierarchical categories
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  parent      Category?    @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Category[]   @relation("CategoryHierarchy")
+  consultants Consultant[]
+  services    Service[]
+  articles    Article[]
+
+  @@index([slug])
+  @@index([isActive])
+  @@index([order])
+  @@index([parentId])
+  @@map("categories")
+}
+
+// ============================================
+// ENHANCED NOTIFICATIONS WITH CHANNELS
+// ============================================
