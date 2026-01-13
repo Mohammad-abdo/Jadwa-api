@@ -756,6 +756,33 @@ model CMSPage {
 }
 
 // ============================================
+// SLIDERS / BANNERS
+// ============================================
+
+model Slider {
+  id            String   @id @default(uuid())
+  title         String
+  titleAr       String? // Arabic title
+  subtitle      String?  @db.Text
+  subtitleAr    String?  @db.Text // Arabic subtitle
+  description   String?  @db.Text
+  descriptionAr String?  @db.Text // Arabic description
+  image         String // Image URL
+  icon          String? // Icon URL (optional)
+  buttonText    String?
+  buttonTextAr  String? // Arabic button text
+  buttonLink    String? // Link URL for button
+  isActive      Boolean  @default(true)
+  order         Int      @default(0) // Display order
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([order])
+  @@map("sliders")
+}
+
+// ============================================
 // SMART PLATFORM FEATURES
 // ============================================
 

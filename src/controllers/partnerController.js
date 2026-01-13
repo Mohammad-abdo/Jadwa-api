@@ -105,7 +105,7 @@ export const updatePartner = asyncHandler(async (req, res) => {
     data: {
       ...(name && { name }),
       ...(nameAr !== undefined && { nameAr }),
-      ...(logo !== undefined && { logo }),
+      ...(logo !== undefined && { logo: logo || null }), // Convert empty string to null
       ...(website !== undefined && { website }),
       ...(description !== undefined && { description }),
       ...(descriptionAr !== undefined && { descriptionAr }),
