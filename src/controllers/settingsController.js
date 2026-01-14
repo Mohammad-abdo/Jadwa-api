@@ -426,3 +426,91 @@ export const updateIntegrationSettings = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * Get legal settings
+ */
+export const getLegalSettings = asyncHandler(async (req, res) => {
+  const keys = [
+    'termsClient',
+    'termsClientEn',
+    'termsConsultant',
+    'termsConsultantEn',
+  ];
+
+  const settings = await prisma.systemSetting.findMany({
+    where: {
+      key: { in: keys },
+    },
+  });
+
+  const settingsObj = {};
+  settings.forEach((setting) => {
+    try {
+      settingsObj[setting.key] = JSON.parse(setting.value);
+    } catch {
+      settingsObj[setting.key] = setting.value;
+    }
+  });
+
+  res.json({ settings: settingsObj });
+});
+
+/**
+ * Update legal settings
+ */
+export const updateLegalSettings = asyncHandler(async (req, res) => {
+  const {
+    termsClient,
+    termsClientEn,
+    termsConsultant,
+    termsConsultantEn,
+  } = req.body;
+
+  const updates = [];
+
+  if (termsClient !== undefined) {
+    updates.push(
+      prisma.systemSetting.upsert({
+        where: { key: 'termsClient' },
+        update: { value: JSON.stringify(termsClient) },
+        create: { key: 'termsClient', value: JSON.stringify(termsClient) },
+      })
+    );
+  }
+
+  if (termsClientEn !== undefined) {
+    updates.push(
+      prisma.systemSetting.upsert({
+        where: { key: 'termsClientEn' },
+        update: { value: JSON.stringify(termsClientEn) },
+        create: { key: 'termsClientEn', value: JSON.stringify(termsClientEn) },
+      })
+    );
+  }
+
+  if (termsConsultant !== undefined) {
+    updates.push(
+      prisma.systemSetting.upsert({
+        where: { key: 'termsConsultant' },
+        update: { value: JSON.stringify(termsConsultant) },
+        create: { key: 'termsConsultant', value: JSON.stringify(termsConsultant) },
+      })
+    );
+  }
+
+  if (termsConsultantEn !== undefined) {
+    updates.push(
+      prisma.systemSetting.upsert({
+        where: { key: 'termsConsultantEn' },
+        update: { value: JSON.stringify(termsConsultantEn) },
+        create: { key: 'termsConsultantEn', value: JSON.stringify(termsConsultantEn) },
+      })
+    );
+  }
+
+  await Promise.all(updates);
+
+  res.json({
+    message: 'Legal settings updated successfully',
+  });
+});

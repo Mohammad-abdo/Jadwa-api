@@ -10,10 +10,15 @@ import {
   updatePaymentSettings,
   getIntegrationSettings,
   updateIntegrationSettings,
+  getLegalSettings,
+  updateLegalSettings,
 } from '../controllers/settingsController.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Public routes
+router.get('/public/legal', getLegalSettings);
 
 // All settings routes require authentication and admin role
 router.use(authenticate);
@@ -27,6 +32,8 @@ router.get('/payment', getPaymentSettings);
 router.put('/payment', updatePaymentSettings);
 router.get('/integration', getIntegrationSettings);
 router.put('/integration', updateIntegrationSettings);
+router.get('/legal', getLegalSettings);
+router.put('/legal', updateLegalSettings);
 
 // Specific setting routes
 router.get('/:key', getSetting);
