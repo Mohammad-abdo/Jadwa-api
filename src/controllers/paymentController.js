@@ -1,210 +1,85 @@
-import prisma from "../config/database.js";
-import { asyncHandler } from "../middleware/errorHandler.js";
-import { createNotification } from "../utils/notifications.js";
+import prisma from '../config/database.js';
+import { asyncHandler } from '../middleware/errorHandler.js';
+import { createNotification } from '../utils/notifications.js';
 
 /**
- * Create payment
+ * Handle Moyasar Webhook
+ * PERSIST transaction to DB asynchronously
  */
-export const createPayment = asyncHandler(async (req, res) => {
-  const { bookingId, method, transactionId, gatewayResponse } = req.body;
+export const handleMoyasarWebhook = asyncHandler(async (req, res) => {
+  const paymentData = req.body;
 
-  const booking = await prisma.booking.findUnique({
-    where: { id: bookingId },
-    include: {
-      client: { include: { user: true } },
-      consultant: { include: { user: true } },
+  // Basic validation
+  if (!paymentData || !paymentData.id) {
+    return res.status(400).json({ error: 'Invalid webhook payload' });
+  }
+
+  const { id, status, amount, source, created_at, description, metadata } = paymentData;
+
+  console.log(`Received Moyasar Webhook for Payment ${id}: ${status}`);
+
+  // Map Moyasar status to our Enum
+  let paymentStatus = 'PENDING';
+  if (status === 'paid') paymentStatus = 'COMPLETED';
+  else if (status === 'failed') paymentStatus = 'FAILED';
+  else if (status === 'refunded') paymentStatus = 'REFUNDED';
+
+  // Map Payment Method
+  let paymentMethod = 'CREDIT_CARD';
+  if (source) {
+    if (source.type === 'applepay') paymentMethod = 'APPLE_PAY';
+    else if (source.type === 'stcpay') paymentMethod = 'STC_PAY';
+  }
+
+  // Upsert Payment Record
+  // We use upsert because the frontend might have already created it,
+  // or this webhook might be a duplicate/update.
+  const payment = await prisma.payment.upsert({
+    where: { transactionId: id },
+    update: {
+      status: paymentStatus,
+      updatedAt: new Date(),
+      gatewayResponse: JSON.stringify(paymentData),
+      // If refunded, we might track that here
+    },
+    create: {
+      clientId: metadata?.clientId || 'unknown', // Ideally passed in metadata
+      amount: amount / 100, // Moyasar amount is in halalas
+      currency: paymentData.currency || 'SAR',
+      method: paymentMethod,
+      status: paymentStatus,
+      transactionId: id,
+      gatewayResponse: JSON.stringify(paymentData),
+      description: description,
+      // We explicitly DO NOT link bookingId here unless we are sure.
+      // Usually, the booking creation links the payment.
+      // If we have bookingId in metadata, we could try to link it.
+      ...(metadata?.bookingId && { bookingId: metadata.bookingId }),
     },
   });
 
-  if (!booking) {
-    return res
-      .status(404)
-      .json({ error: "Booking not found please call support" });
+  // If we have a booking associated (either via metadata or previously linked)
+  if (payment.bookingId) {
+    if (paymentStatus === 'COMPLETED') {
+        const booking = await prisma.booking.update({
+            where: { id: payment.bookingId },
+            data: { 
+                paymentStatus: 'COMPLETED',
+                status: 'CONFIRMED' // Auto-confirm on payment?
+            },
+            include: { consultant: true, client: true }
+        });
+
+        // Notify Consultant
+        await createNotification({
+            userId: booking.consultant.userId,
+            type: 'PAYMENT_RECEIVED',
+            title: 'Payment Received',
+            message: `Payment of ${payment.amount} SAR received for booking #${booking.id}`,
+            link: `/consultant/bookings/${booking.id}`,
+        });
+    }
   }
 
-  if (
-    booking.clientId !== req.userId &&
-    !["ADMIN", "SUPER_ADMIN"].includes(req.userRole)
-  ) {
-    return res.status(403).json({ error: "Access denied" });
-  }
-
-  // Generate invoice number
-  const invoiceNumber = `INV-${Date.now()}-${Math.random()
-    .toString(36)
-    .substr(2, 9)
-    .toUpperCase()}`;
-
-  const payment = await prisma.payment.create({
-    data: {
-      bookingId,
-      clientId: booking.clientId,
-      consultantId: booking.consultantId,
-      amount: booking.price,
-      currency: "SAR",
-      method,
-      status: "PENDING",
-      transactionId,
-      invoiceNumber,
-      gatewayResponse: gatewayResponse ? JSON.stringify(gatewayResponse) : null,
-    },
-  });
-
-  // Update booking payment status
-  await prisma.booking.update({
-    where: { id: bookingId },
-    data: { paymentId: payment.id, paymentStatus: "PENDING" },
-  });
-
-  res.status(201).json({
-    message: "Payment created successfully",
-    payment,
-  });
-});
-
-/**
- * Update payment status (Webhook/Admin)
- */
-export const updatePaymentStatus = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const { status, transactionId, failureReason } = req.body;
-
-  const payment = await prisma.payment.findUnique({
-    where: { id },
-    include: {
-      booking: {
-        include: {
-          client: { include: { user: true } },
-          consultant: { include: { user: true } },
-        },
-      },
-    },
-  });
-
-  if (!payment) {
-    return res.status(404).json({ error: "Payment not found" });
-  }
-
-  const updateData = { status };
-  if (transactionId) updateData.transactionId = transactionId;
-  if (failureReason) updateData.failureReason = failureReason;
-  if (status === "COMPLETED") {
-    updateData.paidAt = new Date();
-  }
-
-  const updatedPayment = await prisma.payment.update({
-    where: { id },
-    data: updateData,
-  });
-
-  // Update booking payment status
-  await prisma.booking.update({
-    where: { id: payment.bookingId },
-    data: { paymentStatus: status },
-  });
-
-  // If payment completed, create earning for consultant
-  if (status === "COMPLETED") {
-    const platformCommissionRate = 0.15; // 15% - should come from system settings
-    const platformFee = payment.amount * platformCommissionRate;
-    const netAmount = payment.amount - platformFee;
-
-    await prisma.earning.create({
-      data: {
-        consultantId: payment.consultantId,
-        paymentId: payment.id,
-        amount: payment.amount,
-        platformFee,
-        netAmount,
-        status: "available",
-      },
-    });
-
-    // Update consultant total earnings
-    await prisma.consultant.update({
-      where: { id: payment.consultantId },
-      data: {
-        totalEarnings: {
-          increment: netAmount,
-        },
-      },
-    });
-
-    // Notify consultant
-    await createNotification({
-      userId: payment.booking.consultant.userId,
-      type: "PAYMENT_RECEIVED",
-      title: "Payment Received",
-      message: `Payment of ${netAmount} SAR has been added to your earnings`,
-      link: `/consultant/earnings`,
-    });
-  }
-
-  // Notify client
-  await createNotification({
-    userId: payment.booking.client.userId,
-    type: "PAYMENT_RECEIVED",
-    title: `Payment ${status}`,
-    message: `Your payment has been ${status.toLowerCase()}`,
-    link: `/client/payments/${payment.id}`,
-  });
-
-  res.json({
-    message: "Payment status updated successfully",
-    payment: updatedPayment,
-  });
-});
-
-/**
- * Get user payments
- */
-export const getPayments = asyncHandler(async (req, res) => {
-  const { status } = req.query;
-  const where = {};
-
-  if (req.userRole === "CLIENT") {
-    where.clientId = req.userId;
-  } else if (req.userRole === "CONSULTANT") {
-    const consultant = await prisma.consultant.findUnique({
-      where: { userId: req.userId },
-    });
-    where.consultantId = consultant.id;
-  }
-
-  if (status) where.status = status;
-
-  const payments = await prisma.payment.findMany({
-    where,
-    include: {
-      booking: {
-        include: {
-          service: true,
-        },
-      },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  res.json({ payments });
-});
-
-/**
- * Get payment by ID
- */
-export const getPaymentById = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  const payment = await prisma.payment.findUnique({
-    where: { id },
-    include: {
-      booking: true,
-      earnings: true,
-    },
-  });
-
-  if (!payment) {
-    return res.status(404).json({ error: "Payment not found" });
-  }
-
-  res.json({ payment });
+  res.status(200).json({ received: true });
 });

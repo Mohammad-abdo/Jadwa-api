@@ -210,6 +210,15 @@ export const getPaymentSettings = asyncHandler(async (req, res) => {
     'paymentSecretKey',
     'commissionRate',
     'enableAutoPayout',
+    // Gateway specific keys
+    'moyasar_apiKey',
+    'moyasar_secretKey',
+    'tap_apiKey',
+    'tap_secretKey',
+    'stc_apiKey',
+    'stc_secretKey',
+    'paypal_apiKey',
+    'paypal_secretKey',
   ];
 
   const settings = await prisma.systemSetting.findMany({
@@ -240,6 +249,15 @@ export const updatePaymentSettings = asyncHandler(async (req, res) => {
     paymentSecretKey,
     commissionRate,
     enableAutoPayout,
+    // Gateway specific keys
+    moyasar_apiKey,
+    moyasar_secretKey,
+    tap_apiKey,
+    tap_secretKey,
+    stc_apiKey,
+    stc_secretKey,
+    paypal_apiKey,
+    paypal_secretKey,
   } = req.body;
 
   const updates = [];
@@ -293,6 +311,28 @@ export const updatePaymentSettings = asyncHandler(async (req, res) => {
       })
     );
   }
+
+  // Helper to push updates for specific keys
+  const pushKeyUpdate = (key, value) => {
+      if (value !== undefined) {
+          updates.push(
+            prisma.systemSetting.upsert({
+              where: { key },
+              update: { value: JSON.stringify(value) },
+              create: { key, value: JSON.stringify(value) },
+            })
+          );
+      }
+  }
+
+  pushKeyUpdate('moyasar_apiKey', moyasar_apiKey);
+  pushKeyUpdate('moyasar_secretKey', moyasar_secretKey);
+  pushKeyUpdate('tap_apiKey', tap_apiKey);
+  pushKeyUpdate('tap_secretKey', tap_secretKey);
+  pushKeyUpdate('stc_apiKey', stc_apiKey);
+  pushKeyUpdate('stc_secretKey', stc_secretKey);
+  pushKeyUpdate('paypal_apiKey', paypal_apiKey);
+  pushKeyUpdate('paypal_secretKey', paypal_secretKey);
 
   await Promise.all(updates);
 

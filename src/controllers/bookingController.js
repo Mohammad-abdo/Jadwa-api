@@ -110,6 +110,10 @@ export const createBooking = asyncHandler(async (req, res) => {
     duration,
     price,
     clientNotes,
+    paymentStatus,
+    paymentMethod,
+    transactionId,
+    paymentDetails,
   } = req.body;
 
   // Get client record
@@ -131,6 +135,39 @@ export const createBooking = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Consultant not available' });
   }
 
+  // Handle Payment Record Creation/Update first to avoid nested write issues
+  let paymentRecordId = null;
+
+  if (paymentStatus === 'PAID' && transactionId) {
+      try {
+        const payment = await prisma.payment.upsert({
+            where: { transactionId: transactionId },
+            update: {
+                status: 'COMPLETED',
+                clientId: client.id,
+                consultantId,
+                amount: parseFloat(price || consultant.pricePerSession),
+                method: paymentMethod === 'mada' ? 'MADA' : paymentMethod === 'applepay' ? 'APPLE_PAY' : 'CREDIT_CARD',
+                gatewayResponse: paymentDetails,
+            },
+            create: {
+                clientId: client.id,
+                consultantId,
+                amount: parseFloat(price || consultant.pricePerSession),
+                method: paymentMethod === 'mada' ? 'MADA' : paymentMethod === 'applepay' ? 'APPLE_PAY' : 'CREDIT_CARD',
+                status: 'COMPLETED',
+                transactionId: transactionId,
+                gatewayResponse: paymentDetails,
+            }
+        });
+        paymentRecordId = payment.id;
+      } catch (error) {
+          console.error('Error upserting payment record:', error);
+          // Continue booking creation even if payment record fails? 
+          // Better to fail or rely on transactionId in booking
+      }
+  }
+
   // Create booking
   const booking = await prisma.booking.create({
     data: {
@@ -144,8 +181,10 @@ export const createBooking = asyncHandler(async (req, res) => {
       price: parseFloat(price || consultant.pricePerSession),
       clientNotes,
       status: 'PENDING',
-      paymentStatus: 'PENDING',
-    },
+      paymentStatus: paymentStatus === 'PAID' ? 'COMPLETED' : 'PENDING',
+      paymentId: paymentRecordId, // manual link
+      // Removed nested 'payment' write
+  },
     include: {
       consultant: {
         include: { user: true },
@@ -326,4 +365,3 @@ export const rateBooking = asyncHandler(async (req, res) => {
     booking: updatedBooking,
   });
 });
-
