@@ -29,6 +29,7 @@ import supportRoutes from "./routes/supportRoutes.js";
 import partnerRoutes from "./routes/partnerRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import sliderRoutes from "./routes/sliderRoutes.js";
+import videoRoutes from "./routes/videoRoutes.js";
 
 // Load environment variables
 dotenv.config();
@@ -314,6 +315,7 @@ app.use("/api/support", supportRoutes);
 app.use("/api/partners", partnerRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/sliders", sliderRoutes);
+app.use("/api/video", videoRoutes);
 
 // 404 handler
 app.use(notFound);
