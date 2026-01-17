@@ -9,12 +9,16 @@ const generateToken = (channelName, uid) => {
     throw new Error("Agora App ID not found in environment variables");
   }
 
-  // If no certificate is present, return null. 
-  // This likely means the project is in "App ID only" mode, 
+  // If no certificate is present, return null.
+  // This likely means the project is in "App ID only" mode,
   // so the frontend should try to join without a token.
   if (!appCertificate) {
-    console.warn("Agora App Certificate not found - returning null token (App ID only mode)");
-    return null;
+    console.error("Agora App Certificate not found in environment variables");
+    // Throw an error so the frontend knows something is wrong,
+    // rather than trying to join without a token (which fails if the project is in Secure Mode).
+    throw new Error(
+      "Agora App Certificate is missing. Please add AGORA_APP_CERTIFICATE to your .env file.",
+    );
   }
 
   const role = RtcRole.PUBLISHER;
@@ -33,7 +37,7 @@ const generateToken = (channelName, uid) => {
     channelName,
     uidInt,
     role,
-    privilegeExpiredTs
+    privilegeExpiredTs,
   );
 
   return token;
