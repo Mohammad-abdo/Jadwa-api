@@ -66,7 +66,7 @@ export const uploadFile = asyncHandler(async (req, res) => {
     return res.status(500).json({ error: 'File upload failed: file was not saved to disk' });
   }
 
-  const fileUrl = `${process.env.API_URL || 'http://localhost:5000'}/uploads/${finalOwnerType}/${req.file.filename}`;
+  const fileUrl = `${process.env.API_URL || 'https://jadwa.developteam.site'}/uploads/${finalOwnerType}/${req.file.filename}`;
   
   // Double-check file exists before saving to database
   try {

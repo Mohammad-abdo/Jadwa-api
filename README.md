@@ -55,7 +55,7 @@ npm run prisma:seed
 npm run dev
 ```
 
-The API will be available at `http://localhost:5000`
+The API will be available at `https://jadwa.developteam.site`
 
 ## 📁 Project Structure
 
