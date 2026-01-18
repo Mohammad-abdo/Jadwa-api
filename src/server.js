@@ -45,7 +45,7 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
+    origin: process.env.CORS_ORIGIN || "https://jadwa-phi.vercel.app",
     credentials: true,
   })
 );
@@ -265,7 +265,7 @@ app.use(
 
 // Log uploads directory for debugging
 console.log(`📁 Serving uploads from: ${uploadsPath}`);
-console.log(`📁 Uploads URL: http://localhost:${PORT}/uploads`);
+console.log(`📁 Uploads URL: https://jadwa.developteam.site/uploads`);
 
 // Debug endpoint to check if a file exists (development only)
 if (process.env.NODE_ENV === "development") {
@@ -287,7 +287,7 @@ if (process.env.NODE_ENV === "development") {
       ownerType,
       fileName,
       url: `/uploads/${ownerType}/${fileName}`,
-      fullUrl: `http://localhost:${PORT}/uploads/${ownerType}/${fileName}`,
+      fullUrl: `https://jadwa.developteam.site/uploads/${ownerType}/${fileName}`,
       filesInDirectory: filesInDir.slice(0, 20), // Show first 20 files
     });
   });
@@ -325,10 +325,10 @@ app.use(errorHandler);
 
 // Start server
 const server = app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on https://jadwa.developteam.site:${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || "development"}`);
   console.log(
-    `🔗 CORS enabled for: ${process.env.CORS_ORIGIN || "http://localhost:3000"}`
+    `🔗 CORS enabled for: ${process.env.CORS_ORIGIN || "https://jadwa-phi.vercel.app/"}`
   );
   console.log(`📁 Upload directory: ${path.join(__dirname, "../uploads")}`);
 });
