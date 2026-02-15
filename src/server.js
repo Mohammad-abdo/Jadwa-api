@@ -40,6 +40,7 @@ const __dirname = path.dirname(__filename);
 // Create Express app
 const app = express();
 const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST || "0.0.0.0";
 
 //ho
 // Middleware
@@ -297,7 +298,7 @@ if (process.env.NODE_ENV === "development") {
 app.use("/api/auth", authRoutes);
 app.use("/api/services", serviceRoutes);
 app.use("/api/bookings", bookingRoutes);
-app.use("/api/consultants", consultantRoutes);
+app.use("/api/ئ", consultantRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/messages", messageRoutes);
@@ -324,8 +325,8 @@ app.use(notFound);
 app.use(errorHandler);
 
 // Start server
-const server = app.listen(PORT, () => {
-  console.log(`🚀 Server running on https://jadwa.developteam.site:${PORT}`);
+const server = app.listen(PORT, HOST, () => {
+  console.log(`🚀 Server running on http://${HOST}:${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || "development"}`);
   console.log(
     `🔗 CORS enabled for: ${process.env.CORS_ORIGIN || "https://jadwa-phi.vercel.app/"}`
